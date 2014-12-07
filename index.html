@@ -1,0 +1,275 @@
+<html>
+<head>
+    <title>ludum dare 31 // project</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0F0000;
+        }
+	.rendererView {
+		position: absolute;
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+
+
+    </style>
+    <script src="pixi.js"></script>
+</head>
+<body>
+    <script>
+    var stage = new PIXI.Stage(0xCCCCCC);
+    var width = 800;
+    var height = 600;
+ 
+    var title = new PIXI.Sprite.fromImage('title.png')
+    stage.addChild(title);
+
+    title.position.x = 50;
+    title.position.y = 50;
+ 
+    var renderer = PIXI.autoDetectRenderer(width, height);
+    renderer.view.className = "rendererView";
+ 
+    document.body.appendChild(renderer.view);
+   
+    var mouseX = 0;
+    var mouseXnorm = 0;
+    var mouseY = 0;
+    var mouseYnorm = 0;
+
+    // Detect if the browser is IE or not.
+    // If it is not IE, we assume that the browser is NS.
+    var IE = document.all?true:false
+    
+    // If NS -- that is, !IE -- then set up for mouse capture
+    if (!IE) document.captureEvents(Event.MOUSEMOVE)
+    
+    function getMouseXY(e) {
+      if (IE) { // grab the x-y pos.s if browser is IE
+        mouseX = event.clientX + document.body.scrollLeft
+        mouseY = event.clientY + document.body.scrollTop
+      } else {  // grab the x-y pos.s if browser is NS
+        mouseX = e.pageX
+        mouseY = e.pageY
+      } 
+      var dheight = document.body.clientHeight;
+      var dwidth = document.body.clientWidth;
+      mouseXnorm = mouseX / dwidth;
+      mouseYnorm = mouseY / dheight;
+    }
+    document.onmousemove = getMouseXY;
+
+    function spawnCore(stage, w, h) {
+        function spawnSide(w, h) {
+           var side = new PIXI.Graphics();
+           side.beginFill(0x123454,1);
+           side.drawRect(-(w/2.0), -(h/2.0),w,h);
+            var obj = {po: side,
+                mode: 0,
+                changeMode: function(mode) {
+                    this.mode = mode;
+                },
+                changeColor: function(color) {
+                    this.po.clear();
+                    this.po.beginFill(color,1);
+                    this.po.drawRect(-(w/2.0), -(h/2.0),w,h);
+                }
+            };
+            return(obj); 
+        }
+
+        var core = new PIXI.Graphics();
+        core = new PIXI.Graphics();
+        var blurFilter = new PIXI.BlurFilter();
+        blurFilter.blur = 0.0;
+        core.filters = [blurFilter];
+ 
+        core.drawRect(-w, -h, 2*w, 2*h);
+        core.drawRect(-(w/2.0), -(h/2.0),w,h);
+        core.endFill();
+
+        core.lineStyle(5, 0x999999, 0.2);
+        core.drawCircle(0,0, 100);
+        stage.addChild(core);
+
+        var coreobj = {
+            po: core,
+            w: w,
+            blur: blurFilter,
+            h: h,
+            reversedAttractor: false,
+            attract: function(gravity, target, delta) {
+
+                var dx = (target.po.position.x - this.po.position.x);
+                var dy = (target.po.position.y - this.po.position.y);
+
+                var norm = Math.sqrt(dx * dx + dy * dy);
+
+                this.po.position.x += gravity * (dx / norm); 
+                this.po.position.y += gravity * (dy / norm);
+
+                var anx = Math.abs(this.po.position.y - height/2.0);
+                var hyp = Math.sqrt(dx * dx + dy * dy);
+                var angle = Math.acos(anx/hyp);
+
+                // determine quadrat for negative or positive rotation
+                var spacex = this.po.position.x - (width / 2.0);
+                var spacey = this.po.position.y - (height/ 2.0);
+
+                if(spacex > 0 && spacey > 0) {
+                    this.po.rotation = -angle;   
+                }
+                if(spacex > 0 && spacey < 0) {
+                    this.po.rotation = angle;
+                }
+                if(spacex < 0 && spacey > 0) {
+                    this.po.rotation = angle;
+                }
+                if(spacex < 0 && spacey < 0) {
+                    this.po.rotation = -angle;
+                }
+            },
+            spawn: function(where) {
+                if(where == "right") {
+                var side = spawnSide(5,this.h);
+                side.po.position.x = this.w / 2.0;
+                }
+                if(where == "left") {
+                var side = spawnSide(5,this.h);
+                side.po.position.x = -this.w / 2.0;
+                }
+                if(where == "bottom") {
+                var side = spawnSide(this.w,5);
+                side.po.position.y = this.h / 2.0;
+                }
+                if(where == "top") {
+                var side = spawnSide(this.w,5);
+                side.po.position.y = -this.h / 2.0;
+                }
+
+                this.po.addChild(side.po);
+                return(side)
+            },
+            acquire: function() {
+                // determine quadrat for negative or positive rotation
+                var spacex = this.po.position.x - (width / 2.0);
+                var spacey = this.po.position.y - (height/ 2.0);
+
+                if((spacex > 0 && spacey > 0) || (spacex < 0 && spacey > 0)) {
+                    this.top = this.spawn("top");
+                    this.top.changeColor(0xFF0000);
+                }
+                if((spacex > 0 && spacey < 0) || (spacex < 0 && spacey < 0)) {
+                    this.bottom = this.spawn("bottom");
+                    this.bottom.changeColor(0x00FF00);
+                }
+            },
+            init: function() {
+                this.top = this.spawn("top");
+                this.top.changeColor(0x67CDDC);
+
+                this.left = this.spawn("left");
+                this.left.changeColor(0xD0DD2B);
+
+                this.right = this.spawn("right");
+                this.right.changeColor(0x98C73D);
+
+                this.bottom = this.spawn("bottom");
+                this.bottom.changeColor(0x00A9E0);
+            }
+        };
+        return(coreobj);
+    }
+
+    function spawnChallenge(stage, challenges) {
+        var challenge = spawnCore(stage, 50, 50);
+
+        function sign() {
+            if(Math.random() > 0.5) {
+                return 1;
+            } else {
+                return -1;
+            }
+        }
+
+        challenge.po.position.x = width/2.0 + Math.random() * sign() * 1000;
+        challenge.po.position.y = height/2.0 + Math.random() * sign() * 1000 
+        challenge.acquire();
+        challenges.push(challenge);
+    }
+
+    function updateChallenges(core, challenges) {
+        for(i = 0; i < challenges.length; i++) {
+            var c = challenges[i]
+            
+            var gravity = 5;
+            if(c.reversedAttractor) {    
+                gravity = gravity * 0.5 * -1;
+            }
+            c.attract(gravity, core, 0);
+ 
+            // blurring
+            var corepos = core.po.position;
+            var cpos = c.po.position;
+            var dx = cpos.x - corepos.x;
+            var dy = cpos.x - corepos.y;
+            var blurf = Math.sqrt(dx*dx + dy * dy);
+            c.blur.blur = blurf / 20.0;
+
+            // test if radius is on threshold
+            var dx = (core.po.position.x - c.po.position.x);
+            var dy = (core.po.position.y - c.po.position.y);
+            var norm = Math.sqrt(dx * dx + dy * dy);
+            if(norm < 50) {
+                c.reversedAttractor = true;
+            }
+        }
+    }
+
+    requestAnimFrame( animate );
+ 
+    var core = spawnCore(stage,50,50);
+    var challenges = [];
+
+    spawnChallenge(stage, challenges);
+    core.init(); 
+
+    var last = new Date().getTime();
+    var spawnClock = 0;
+    var spawnTime = 500;
+
+    function animate() {
+        var elapsed = new Date().getTime() - last;
+
+        requestAnimFrame( animate );
+        core.po.position.x = width / 2.0;
+        core.po.position.y = height / 2.0; 
+
+        updateChallenges(core, challenges);
+
+        spawnClock += elapsed;
+        if(spawnClock > spawnTime) {
+            spawnChallenge(stage, challenges);
+            spawnClock = 0;
+        }
+
+        core.po.rotation = mouseXnorm * 2 * 3.41; 
+        // render the stage  
+        renderer.render(stage);
+        last = new Date().getTime();
+    }
+
+    window.addEventListener('keydown', function(event) {
+      switch (event.keyCode) {
+        case 37: // Left
+            spawnChallenge(stage, challenges);
+        break;
+      }
+    }, false);
+    </script>
+ 
+    </body>
+</html>
